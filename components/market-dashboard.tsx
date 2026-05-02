@@ -7,6 +7,7 @@ import { Layout } from "@/components/layout";
 import { MarketTable } from "@/components/market-table";
 import { PriceCard } from "@/components/price-card";
 import { Tabs } from "@/components/tabs";
+import { ApiStatus } from "@/components/api-status";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { fetchQuotes } from "@/lib/coingecko";
 import { formatCompactUsd, formatPercent, formatUsd } from "@/lib/format";
@@ -49,7 +50,8 @@ export function MarketDashboard() {
     isLoading,
   } = useSWR("market-quotes", fetchMarketQuotes, {
     shouldRetryOnError: false,
-    errorRetryCount: 2,
+    errorRetryCount: 1,
+    dedupingInterval: 30000,
   });
 
   const activeMarkets = getMarketsForTab(activeTab);
@@ -74,7 +76,9 @@ export function MarketDashboard() {
         </div>
       }
       headerRight={
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
+          <ApiStatus />
+          <div className="flex items-center gap-2">
           <Link
             className="inline-flex h-10 items-center rounded-full border border-border bg-surface px-4 text-sm font-medium text-foreground transition hover:border-foreground/40 hover:bg-surface-strong"
             href="/xlm"
@@ -82,6 +86,7 @@ export function MarketDashboard() {
             XLM calculator
           </Link>
           <ThemeToggle />
+          </div>
         </div>
       }
     >
@@ -124,7 +129,7 @@ export function MarketDashboard() {
           </div>
 
           <MarketTable
-            error={error ? "Unable to load market prices. CoinGecko API may be rate-limited. Please try again later." : null}
+            error={error ? "Unable to load market prices. Using alternative data sources..." : null}
             items={visibleMarkets}
             loading={isLoading}
             quotes={quotes}
