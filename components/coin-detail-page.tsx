@@ -1,34 +1,160 @@
 ﻿"use client";
 
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import useSWR from "swr";
 import { Layout } from "@/components/layout";
 import { PriceCard } from "@/components/price-card";
 import { PriceCalculator } from "@/components/price-calculator";
 import { PriceChart } from "@/components/price-chart";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { CurrencySelector, type Currency } from "@/components/currency-selector";
 import type { MarketSeed } from "@/lib/markets";
-import { formatInr, formatPercent, formatUsd } from "@/lib/format";
+import { fetchChartData, fetchCoinQuote } from "@/lib/coingecko";
+import { formatPercent, formatCurrency } from "@/lib/format";
+import { LoadingState, ErrorState } from "@/components/states";
+
+type ChartDataPoint = {
+  time: number;
+  value: number;
+};
+
+type QuoteData = {
+  usd: number;
+  usd24hChange: number;
+  inr: number;
+  inr24hChange: number;
+  eur: number;
+  eur24hChange: number;
+  gbp: number;
+  gbp24hChange: number;
+};
+
+type TimeRange = "1D" | "1W" | "1M" | "1Y" | "5Y";
 
 type CoinDetailPageProps = {
   market: MarketSeed;
 };
 
-async function fetchCoinDetails(geckoId: string) {
-  const res = await fetch(`/api/coin/${geckoId}`);
-  const { quote, rate } = await res.json();
-  return {
-    change24h: quote.usd24hChange,
-    inrPrice: quote.inr ?? (quote.usd ?? 0) * rate,
-    usdPrice: quote.usd ?? 0,
-  };
-}
-
 export function CoinDetailPage({ market }: CoinDetailPageProps) {
-  const { data, error, isLoading } = useSWR(
-    ["coin-detail", market.geckoId],
-    () => fetchCoinDetails(market.geckoId),
-  );
+  const [currency, setCurrency] = useState<Currency>("USD");
+  const [range, setRange] = useState<TimeRange>("1D");
+
+  // Quote state - fetched once with all currencies
+  const [quoteData, setQuoteData] = useState<QuoteData | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(true);
+  const [quoteError, setQuoteError] = useState<Error | null>(null);
+
+  // Chart state - refetched when currency or range changes
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+  const [chartLoading, setChartLoading] = useState(true);
+  const [chartError, setChartError] = useState<Error | null>(null);
+
+  // Fetch quote data (all currencies) - runs once on mount
+  useEffect(() => {
+    async function fetchQuote() {
+      setQuoteLoading(true);
+      setQuoteError(null);
+
+      try {
+        const quote = await fetchCoinQuote(market.geckoId);
+        setQuoteData(quote);
+      } catch (err) {
+        console.error("Failed to fetch quote:", err);
+        setQuoteError(err instanceof Error ? err : new Error("Failed to fetch price"));
+      } finally {
+        setQuoteLoading(false);
+      }
+    }
+
+    fetchQuote();
+  }, [market.geckoId]);
+
+  // Fetch chart data - runs when currency or range changes
+  useEffect(() => {
+    async function fetchChart() {
+      setChartLoading(true);
+      setChartError(null);
+
+      try {
+        const rangeMap: Record<TimeRange, number> = {
+          "1D": 1,
+          "1W": 7,
+          "1M": 30,
+          "1Y": 365,
+          "5Y": 1825,
+        };
+
+        const rawData = await fetchChartData(
+          market.geckoId,
+          rangeMap[range],
+          currency.toLowerCase() as "usd" | "inr" | "eur" | "gbp"
+        );
+
+        const formatted: ChartDataPoint[] = rawData.map(([timestamp, price]) => ({
+          time: Math.floor(timestamp / 1000),
+          value: price,
+        }));
+
+        setChartData(formatted);
+      } catch (err) {
+        console.error("Failed to fetch chart:", err);
+        setChartError(err instanceof Error ? err : new Error("Failed to fetch chart"));
+      } finally {
+        setChartLoading(false);
+      }
+    }
+
+    fetchChart();
+  }, [market.geckoId, currency, range]);
+
+  const currentPrice = useMemo(() => {
+    if (!quoteData) return 0;
+    switch (currency) {
+      case "USD":
+        return quoteData.usd;
+      case "INR":
+        return quoteData.inr;
+      case "EUR":
+        return quoteData.eur;
+      case "GBP":
+        return quoteData.gbp;
+      default:
+        return quoteData.usd;
+    }
+  }, [quoteData, currency]);
+
+  const change24h = useMemo(() => {
+    if (!quoteData) return 0;
+    switch (currency) {
+      case "USD":
+        return quoteData.usd24hChange;
+      case "INR":
+        return quoteData.inr24hChange;
+      case "EUR":
+        return quoteData.eur24hChange;
+      case "GBP":
+        return quoteData.gbp24hChange;
+      default:
+        return quoteData.usd24hChange;
+    }
+  }, [quoteData, currency]);
+
+  const handleRangeChange = (newRange: TimeRange) => {
+    setRange(newRange);
+  };
+
+  // Build prices object for calculator
+  const pricesForCalculator = quoteData ? {
+    usd: quoteData.usd,
+    inr: quoteData.inr,
+    eur: quoteData.eur,
+    gbp: quoteData.gbp,
+    usd24hChange: quoteData.usd24hChange,
+  } : null;
+
+  // Combine loading/error states for overall UI (if needed)
+  const isLoading = quoteLoading || chartLoading;
+  const error = quoteError || chartError;
 
   return (
     <Layout
@@ -59,44 +185,57 @@ export function CoinDetailPage({ market }: CoinDetailPageProps) {
               {market.name}
             </h1>
           </div>
+          <CurrencySelector activeCurrency={currency} onCurrencyChange={setCurrency} />
         </div>
 
-        <PriceChart coinId={market.geckoId} coinName={market.name} />
+        <PriceChart
+          coinId={market.geckoId}
+          coinName={market.name}
+          currency={currency}
+          data={chartData}
+          isLoading={chartLoading}
+          error={chartError}
+          onRangeChange={handleRangeChange}
+        />
 
         <div className="grid gap-6 lg:grid-cols-2">
           <PriceCard
-            description={`Live CoinGecko quote for ${market.name}. INR is derived from CoinGecko pricing and exchange rates.`}
-            details={
-              data
-                ? [
-                    { label: "USD price", value: formatUsd(data.usdPrice) },
-                    { label: "INR price", value: formatInr(data.inrPrice) },
-                    {
-                      label: "24h change",
-                      tone: (data.change24h ?? 0) >= 0 ? "positive" : "negative",
-                      value: formatPercent(data.change24h),
-                    },
-                    { label: "Symbol", value: market.symbol },
-                  ]
-                : []
+            description={`Live CoinGecko quote for ${market.name}. All prices are from a single API response.`}
+            details={quoteData ? [
+              { label: `${currency} price`, value: formatCurrency(currentPrice, currency) },
+              { label: "Symbol", value: market.symbol },
+              {
+                label: "24h change",
+                tone: (change24h ?? 0) >= 0 ? "positive" : "negative",
+                value: formatPercent(change24h),
+              },
+            ] : []}
+            price={
+              quoteLoading
+                ? <LoadingState message="" />
+                : quoteError
+                ? <ErrorState message="Unable to load price" onRetry={() => window.location.reload()} />
+                : formatCurrency(currentPrice, currency)
             }
-            price={isLoading ? "Loading live quote..." : error ? "Unable to load price" : formatUsd(data?.usdPrice)}
             priceLabel={market.geckoId}
             title={market.name}
           >
             <div className="rounded-2xl border border-border bg-background px-4 py-4 text-sm text-muted">
-              {market.name} is tracked with a one-shot CoinGecko request. The page stays frontend-only and uses the seed dataset for the market identity.
+              All prices fetched directly from CoinGecko API — one request, consistent data.
             </div>
           </PriceCard>
 
-          <PriceCalculator 
-            coinName={market.name} 
+          <PriceCalculator
+            coinName={market.name}
             geckoId={market.geckoId}
             title={`${market.name} Calculator`}
+            prices={pricesForCalculator}
+            isLoading={quoteLoading}
+            error={quoteError}
+            onRetry={() => window.location.reload()}
           />
         </div>
       </div>
     </Layout>
   );
 }
-

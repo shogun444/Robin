@@ -1,93 +1,101 @@
 ﻿"use client";
 
-import { useState } from "react";
-import useSWR from "swr";
+import { useState, useMemo } from "react";
 import { PriceCard } from "@/components/price-card";
-import { fetchCoinQuote, fetchUsdToInrRate } from "@/lib/coingecko";
-import { formatInr, formatPercent, formatUsd } from "@/lib/format";
+import { formatInr, formatUsd, formatEur, formatGbp, formatPercent, formatCurrency } from "@/lib/format";
+import { LoadingState, ErrorState } from "@/components/states";
+import type { Currency } from "@/components/currency-selector";
 
-type CalculatorCurrency = "usd" | "inr";
-
-type CoinSnapshot = {
-  change24h?: number;
-  inrPrice: number;
-  usdPrice: number;
-  usdToInrRate: number;
-};
+type CalculatorCurrency = "USD" | "INR" | "EUR" | "GBP";
 
 type PriceCalculatorProps = {
   coinName: string;
   geckoId: string;
   title?: string;
+  prices?: {
+    usd: number;
+    inr: number;
+    eur: number;
+    gbp: number;
+    usd24hChange: number;
+  } | null;
+  isLoading?: boolean;
+  error?: Error | null;
+  onRetry?: () => void;
 };
 
-async function fetchCoinSnapshot(geckoId: string): Promise<CoinSnapshot> {
-  const [quote, rate] = await Promise.all([
-    fetchCoinQuote(geckoId),
-    fetchUsdToInrRate(),
-  ]);
-
-  return {
-    change24h: quote.usd24hChange,
-    inrPrice: quote.inr ?? (quote.usd ?? 0) * rate,
-    usdPrice: quote.usd ?? 0,
-    usdToInrRate: rate,
-  };
-}
-
-export function PriceCalculator({ coinName, geckoId, title }: PriceCalculatorProps) {
-  const [currency, setCurrency] = useState<CalculatorCurrency>("usd");
+export function PriceCalculator({
+  coinName,
+  geckoId,
+  title,
+  prices,
+  isLoading,
+  error,
+  onRetry,
+}: PriceCalculatorProps) {
+  const [currency, setCurrency] = useState<CalculatorCurrency>("USD");
   const [amount, setAmount] = useState("100");
-
-  const { data, error, isLoading } = useSWR(
-    `coin-snapshot-${geckoId}`,
-    () => fetchCoinSnapshot(geckoId)
-  );
 
   const numericAmount = Number.parseFloat(amount);
   const safeAmount = Number.isFinite(numericAmount) ? numericAmount : 0;
 
-  const coinValue =
-    data && data.usdPrice > 0
-      ? currency === "usd"
-        ? safeAmount / data.usdPrice
-        : safeAmount / data.inrPrice
-      : 0;
+  const coinValue = useMemo(() => {
+    if (!prices) return 0;
+    const priceMap: Record<CalculatorCurrency, number> = {
+      USD: prices.usd,
+      INR: prices.inr,
+      EUR: prices.eur,
+      GBP: prices.gbp,
+    };
+    const currentPrice = priceMap[currency] || prices.usd;
+    return currentPrice > 0 ? safeAmount / currentPrice : 0;
+  }, [prices, currency, safeAmount]);
 
-  const currentPrice = data
-    ? currency === "usd"
-      ? formatUsd(data.usdPrice)
-      : formatInr(data.inrPrice)
-    : "—";
+  const currentPriceDisplay = useMemo(() => {
+    if (!prices) return "—";
+    const priceMap: Record<CalculatorCurrency, number> = {
+      USD: prices.usd,
+      INR: prices.inr,
+      EUR: prices.eur,
+      GBP: prices.gbp,
+    };
+    return formatCurrency(priceMap[currency] || prices.usd, currency);
+  }, [prices, currency]);
+
+  const currencyOptions: CalculatorCurrency[] = ["USD", "INR", "EUR", "GBP"];
 
   return (
     <PriceCard
-      description={`Convert USD or INR into ${coinName} using a live CoinGecko quote and exchange rate.`}
+      description={`Convert ${currencyOptions.join(", ")} into ${coinName} using live prices.`}
       details={
-        data
+        prices
           ? [
-              { label: "USD price", value: formatUsd(data.usdPrice) },
-              { label: "INR price", value: formatInr(data.inrPrice) },
+              { label: "USD price", value: formatUsd(prices.usd) },
+              { label: "INR price", value: formatInr(prices.inr) },
+              { label: "EUR price", value: formatEur(prices.eur) },
+              { label: "GBP price", value: formatGbp(prices.gbp) },
               {
                 label: "24h change",
-                tone: (data.change24h ?? 0) >= 0 ? "positive" : "negative",
-                value: formatPercent(data.change24h),
-              },
-              {
-                label: "USD to INR",
-                value: formatInr(data.usdToInrRate),
+                tone: (prices.usd24hChange ?? 0) >= 0 ? "positive" : "negative",
+                value: formatPercent(prices.usd24hChange),
               },
             ]
           : []
       }
-      price={isLoading ? "Loading live quote..." : error ? "Unable to load quote" : currentPrice}
+      price={
+        isLoading
+          ? <LoadingState message="" />
+          : error
+          ? <ErrorState message="Unable to load data" onRetry={onRetry} />
+          : currentPriceDisplay
+      }
       priceLabel={`${coinName} calculator`}
       title={title || coinName}
     >
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
         <label className="block">
-          <span className="text-[0.7rem] uppercase tracking-[0.24em] text-muted">
-            Amount ({currency.toUpperCase()})
+          <span className="text-[0.7rem] uppercase tracking-[0.22em] text-muted">
+            Amount ({currency})
           </span>
           <input
             className="mt-2 h-12 w-full rounded-2xl border border-border bg-background px-4 text-base text-foreground outline-none transition placeholder:text-muted focus:border-foreground/40"
@@ -99,7 +107,7 @@ export function PriceCalculator({ coinName, geckoId, title }: PriceCalculatorPro
         </label>
 
         <div className="inline-flex rounded-full border border-border bg-surface p-1">
-          {(["usd", "inr"] as CalculatorCurrency[]).map((option) => {
+          {currencyOptions.map((option) => {
             const isActive = currency === option;
 
             return (
@@ -113,7 +121,7 @@ export function PriceCalculator({ coinName, geckoId, title }: PriceCalculatorPro
                 onClick={() => setCurrency(option)}
                 type="button"
               >
-                {option.toUpperCase()}
+                {option}
               </button>
             );
           })}
@@ -128,7 +136,7 @@ export function PriceCalculator({ coinName, geckoId, title }: PriceCalculatorPro
           {coinValue > 0 ? coinValue.toFixed(4) : "0.0000"}
         </div>
         <div className="mt-2 text-sm text-muted">
-          {currency.toUpperCase()} {safeAmount.toFixed(2)} buys approximately {coinValue > 0 ? coinValue.toFixed(4) : "0.0000"} {coinName.toUpperCase()} at {currentPrice}.
+          {currency} {safeAmount.toFixed(2)} buys approximately {coinValue > 0 ? coinValue.toFixed(4) : "0.0000"} {coinName.toUpperCase()} at {currentPriceDisplay}.
         </div>
       </div>
     </PriceCard>

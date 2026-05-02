@@ -9,7 +9,7 @@ type PriceCardProps = {
     tone?: "neutral" | "positive" | "negative";
     value: string;
   }>;
-  price: string;
+  price: ReactNode;
   priceLabel: string;
   title: string;
 };
@@ -51,10 +51,10 @@ export function PriceCard({
 
       {details.length ? (
         <dl className="mt-6 grid gap-3 sm:grid-cols-2">
-          {details.map((detail) => (
+          {details.map((detail, idx) => (
             <div
               className="rounded-2xl border border-border bg-surface-strong px-4 py-3"
-              key={detail.label}
+              key={`${detail.label}-${idx}`}
             >
               <dt className="text-[0.7rem] uppercase tracking-[0.22em] text-muted">
                 {detail.label}
