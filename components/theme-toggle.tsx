@@ -13,10 +13,9 @@ export function ThemeToggle() {
       type="button"
     >
       <span aria-hidden="true" className="text-base">
-        {theme === "dark" ? "â—" : "â—‘"}
+        {theme === "dark" ? "🌙" : "☀️"}
       </span>
       <span>{isReady ? (theme === "dark" ? "Dark" : "Light") : "Theme"}</span>
     </button>
   );
 }
-

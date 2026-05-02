@@ -16,11 +16,14 @@ export function PriceChart({ coinId, coinName }: PriceChartProps) {
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const [range, setRange] = useState<TimeRange>("1D");
+  const [chartError, setChartError] = useState<string | null>(null);
 
   const { data, error, isLoading } = useChartData(coinId, range);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
+
+    setChartError(null);
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
@@ -33,19 +36,6 @@ export function PriceChart({ coinId, coinName }: PriceChartProps) {
         vertLines: { color: "rgba(255, 255, 255, 0.05)" },
         horzLines: { color: "rgba(255, 255, 255, 0.05)" },
       },
-      crosshair: {
-        mode: 1 as any,
-        vertLine: {
-          color: "rgba(255, 255, 255, 0.2)" as any,
-          width: 1,
-          style: 2 as any,
-        },
-        horzLine: {
-          color: "rgba(255, 255, 255, 0.2)" as any,
-          width: 1,
-          style: 2 as any,
-        },
-      },
       rightPriceScale: {
         borderColor: "rgba(255, 255, 255, 0.1)" as any,
       },
@@ -56,8 +46,10 @@ export function PriceChart({ coinId, coinName }: PriceChartProps) {
       },
     });
 
+    let lineSeries: ISeriesApi<"Line"> | null = null;
+
     try {
-      const lineSeries = chart.addSeries("Line");
+      lineSeries = chart.addSeries("Line");
       lineSeries.applyOptions({
         color: "#f97316",
         lineWidth: 2,
@@ -67,7 +59,9 @@ export function PriceChart({ coinId, coinName }: PriceChartProps) {
       seriesRef.current = lineSeries;
     } catch (err) {
       console.error("Failed to create chart series:", err);
+      setChartError("Chart initialization failed");
       chart.remove();
+      return;
     }
 
     const handleResize = () => {
@@ -145,9 +139,9 @@ export function PriceChart({ coinId, coinName }: PriceChartProps) {
       </div>
 
       <div className="rounded-xl border border-border bg-surface-strong p-4">
-        {error ? (
+        {chartError || error ? (
           <div className="flex h-[400px] items-center justify-center text-muted">
-            Failed to load chart data
+            {chartError || "Failed to load chart data"}
           </div>
         ) : (
           <div ref={chartContainerRef} className="h-[400px]" />
