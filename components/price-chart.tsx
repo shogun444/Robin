@@ -59,11 +59,6 @@ export function PriceChart({ coinId, coinName }: PriceChartProps) {
     const lineSeries = chart.addSeries("Line", {
       color: "#f97316",
       lineWidth: 2,
-      lineStyle: 1,
-      crosshairMarkerVisible: true,
-      crosshairMarkerRadius: 4,
-      crosshairMarkerBorderColor: "#f97316",
-      crosshairMarkerBackgroundColor: "#1a1a1a",
     });
 
     chartRef.current = chart;
