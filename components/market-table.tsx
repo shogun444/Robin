@@ -30,8 +30,12 @@ export function MarketTable({ error, items, loading, quotes }: MarketTableProps)
       </div>
 
       {error ? (
-        <div className="px-4 py-10 text-sm text-negative sm:px-5">{error}</div>
-      ) : loading ? (
+        <div className="border-b border-border/70 bg-surface-strong px-4 py-3 text-sm text-negative sm:px-5">
+          {error}
+        </div>
+      ) : null}
+
+      {loading && !items.length ? (
         <MarketTableSkeleton />
       ) : items.length ? (
         <div>
@@ -75,5 +79,3 @@ function MarketTableSkeleton() {
     </div>
   );
 }
-
-
