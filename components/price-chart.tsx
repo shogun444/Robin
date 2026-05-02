@@ -2,22 +2,46 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createChart, IChartApi, ISeriesApi, LineData, Time, ColorType } from "lightweight-charts";
-import { useChartData, TimeRange } from "@/hooks/use-chart-data";
 import { TimeRangeSelector } from "@/components/time-range-selector";
-import { formatPercent, formatUsd } from "@/lib/format";
+import { formatPercent, formatCurrency } from "@/lib/format";
+import { type Currency } from "@/components/currency-selector";
+import { LoadingState, ErrorState } from "@/components/states";
+
+type ChartDataPoint = {
+  time: number;
+  value: number;
+};
 
 type PriceChartProps = {
   coinId: string;
   coinName?: string;
+  currency: Currency;
+  data?: ChartDataPoint[];
+  isLoading?: boolean;
+  error?: Error | null;
+  onRangeChange: (range: TimeRange) => void;
 };
 
-export function PriceChart({ coinId, coinName }: PriceChartProps) {
+type TimeRange = "1D" | "1W" | "1M" | "1Y" | "5Y";
+
+export function PriceChart({
+  coinId,
+  coinName,
+  currency,
+  data: externalData,
+  isLoading: externalLoading,
+  error,
+  onRangeChange,
+}: PriceChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<any>(null);
   const [range, setRange] = useState<TimeRange>("1D");
-  const { data, error, isLoading } = useChartData(coinId, range);
-  const [chartError, setChartError] = useState<string | null>(null);
+
+  // Pass through external data/loading state, but allow fallback to internal state if needed
+  const data = externalData;
+  const isLoading = externalLoading;
+  const chartError = error;
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -35,7 +59,8 @@ export function PriceChart({ coinId, coinName }: PriceChartProps) {
       },
       rightPriceScale: {
         borderColor: "rgba(255, 255, 255, 0.1)" as any,
-      },
+        formatter: (price: number) => formatCurrency(price, currency),
+      } as any,
       timeScale: {
         borderColor: "rgba(255, 255, 255, 0.1)" as any,
         timeVisible: true,
@@ -55,7 +80,6 @@ export function PriceChart({ coinId, coinName }: PriceChartProps) {
       seriesRef.current = lineSeries;
     } catch (err) {
       console.error("Failed to create chart series:", err);
-      setChartError("Chart initialization failed");
       chart.remove();
       return;
     }
@@ -76,8 +100,19 @@ export function PriceChart({ coinId, coinName }: PriceChartProps) {
         chartRef.current.remove();
       }
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Update price scale formatter when currency changes
+  useEffect(() => {
+    if (!chartRef.current) return;
+    chartRef.current.applyOptions({
+      rightPriceScale: {
+        formatter: (price: number) => formatCurrency(price, currency),
+      } as any,
+    } as any);
+  }, [currency]);
+
+  // Update chart data when `data` changes
   useEffect(() => {
     if (!seriesRef.current || !data || data.length === 0) return;
 
@@ -86,8 +121,8 @@ export function PriceChart({ coinId, coinName }: PriceChartProps) {
       value: point.value,
     }));
 
-    const firstPrice = data?.[0]?.value ?? 0;
-    const lastPrice = data?.[data.length - 1]?.value ?? 0;
+    const firstPrice = data[0]?.value ?? 0;
+    const lastPrice = data[data.length - 1]?.value ?? 0;
     const isUp = lastPrice >= firstPrice;
 
     const lineColor = isUp ? "#22c55e" : "#ef4444";
@@ -115,35 +150,48 @@ export function PriceChart({ coinId, coinName }: PriceChartProps) {
       <div className="flex items-center justify-between">
         <div>
           <div className="text-2xl font-semibold text-foreground">
-            {isLoading ? "Loading..." : formatUsd(lastPrice)}
-          </div>
-          <div className="mt-1 flex items-center gap-2 text-sm">
             {isLoading ? (
-              <span className="text-muted">Loading...</span>
-            ) : (
+              <LoadingState message="" />
+            ) : data ? (
               <>
-                <span className={isUp ? "text-green-500" : "text-red-500"}>
-                  {isUp ? "+" : ""}{formatPercent(priceChange)}
-                </span>
-                <span className="text-muted">
-                  Updated {lastUpdated}
-                </span>
+                {formatCurrency(lastPrice, currency)}
+                <span className="ml-2 text-xs text-muted">{currency}</span>
               </>
-            )}
+            ) : null}
           </div>
+          {data && !isLoading && (
+            <div className="mt-1 flex items-center gap-2 text-sm">
+              <span className={isUp ? "text-green-500" : "text-red-500"}>
+                {formatPercent(priceChange)}
+              </span>
+              <span className="text-muted">
+                Updated {lastUpdated}
+              </span>
+            </div>
+          )}
         </div>
-        <TimeRangeSelector activeRange={range} onRangeChange={setRange} />
+        <TimeRangeSelector activeRange={range} onRangeChange={(r) => { setRange(r); onRangeChange(r); }} />
       </div>
 
-      <div className="rounded-xl border border-border bg-surface-strong p-4">
-        {chartError || error ? (
-          <div className="flex h-[400px] items-center justify-center text-muted">
-            {chartError || "Failed to load chart data"}
+      <div className="rounded-xl border border-border bg-surface-strong p-4 min-h-[400px] relative">
+        <div ref={chartContainerRef} className="h-[400px]" />
+        {chartError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-surface-strong/80">
+            <ErrorState
+              message={chartError.message || "Failed to load chart data"}
+              onRetry={() => {
+                setChartError(null);
+                window.location.reload();
+              }}
+            />
           </div>
-        ) : (
-          <div ref={chartContainerRef} className="h-[400px]" />
+        )}
+        {(isLoading || !data) && (
+          <div className="absolute inset-0 flex items-center justify-center bg-surface-strong/80">
+            <LoadingState message="Loading chart..." />
+          </div>
         )}
       </div>
     </div>
   );
-}
+};
