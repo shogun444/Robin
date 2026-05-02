@@ -4,14 +4,14 @@ const COINPAPRIKA_BASE_URL = "https://api.coinpaprika.com/v1";
 const FRANKFURTER_BASE_URL = "https://api.frankfurter.dev/v2";
 
 export type Quote = {
-  inr?: number;
-  inr24hChange?: number;
-  usd?: number;
-  usd24hChange?: number;
-  eur?: number;
-  eur24hChange?: number;
-  gbp?: number;
-  gbp24hChange?: number;
+  usd: number;
+  usd24hChange: number;
+  inr: number;
+  inr24hChange: number;
+  eur: number;
+  eur24hChange: number;
+  gbp: number;
+  gbp24hChange: number;
 };
 
 type SimplePriceResponse = Record<string, Record<string, number>>;
@@ -116,30 +116,27 @@ function buildSimplePriceUrl(
   return `/simple/price?${params.toString()}`;
 }
 
-// CoinGecko API (Primary)
-async function fetchCoinGeckoQuotes(ids: string[], currencies: string[] = ["usd"]): Promise<Record<string, Quote>> {
+// CoinGecko API (USD only)
+async function fetchCoinGeckoUsd(ids: string[]): Promise<Record<string, { usd: number; usd24hChange: number }>> {
   if (!ids.length) return {};
 
   try {
     const payload = await fetchJson<SimplePriceResponse>(
-      `${COINGECKO_BASE_URL}${buildSimplePriceUrl(ids, currencies)}`,
+      `${COINGECKO_BASE_URL}${buildSimplePriceUrl(ids, ["usd"])}`,
     );
 
-    return Object.fromEntries(
-      Object.entries(payload).map(([id, entry]) => [
-        id,
-        {
+    const result: Record<string, { usd: number; usd24hChange: number }> = {};
+
+    for (const [id, entry] of Object.entries(payload)) {
+      if (entry.usd !== undefined) {
+        result[id] = {
           usd: entry.usd,
-          usd24hChange: entry.usd_24h_change,
-          inr: entry.inr,
-          inr24hChange: entry.inr_24h_change,
-          eur: entry.eur,
-          eur24hChange: entry.eur_24h_change,
-          gbp: entry.gbp,
-          gbp24hChange: entry.gbp_24h_change,
-        } satisfies Partial<Quote> as Quote,
-      ]),
-    ) as Record<string, Quote>;
+          usd24hChange: entry.usd_24h_change ?? 0,
+        };
+      }
+    }
+
+    return result;
   } catch (error) {
     console.warn("CoinGecko fetch failed:", error);
     throw error;
@@ -147,7 +144,7 @@ async function fetchCoinGeckoQuotes(ids: string[], currencies: string[] = ["usd"
 }
 
 // Binance API (Fallback)
-async function fetchBinanceQuotes(geckoIds: string[], _currencies: string[] = ["usd"]): Promise<Record<string, Quote>> {
+async function fetchBinanceUsd(geckoIds: string[]): Promise<Record<string, { usd: number; usd24hChange: number }>> {
   if (!geckoIds.length) return {};
 
   try {
@@ -161,7 +158,7 @@ async function fetchBinanceQuotes(geckoIds: string[], _currencies: string[] = ["
       `${BINANCE_BASE_URL}/ticker/24hr?symbols=${JSON.stringify(symbols)}`,
     );
 
-    const result: Record<string, Quote> = {};
+    const result: Record<string, { usd: number; usd24hChange: number }> = {};
 
     for (const ticker of tickers) {
       const geckoId = Object.entries(BINANCE_SYMBOLS).find(
@@ -172,7 +169,6 @@ async function fetchBinanceQuotes(geckoIds: string[], _currencies: string[] = ["
         result[geckoId] = {
           usd: parseFloat(ticker.lastPrice),
           usd24hChange: parseFloat(ticker.priceChangePercent),
-          // Other currencies will be converted via exchange rates if requested
         };
       }
     }
@@ -185,7 +181,7 @@ async function fetchBinanceQuotes(geckoIds: string[], _currencies: string[] = ["
 }
 
 // CoinPaprika API (Fallback)
-async function fetchCoinPaprikaQuotes(geckoIds: string[], _currencies: string[] = ["usd"]): Promise<Record<string, Quote>> {
+async function fetchCoinPaprikaUsd(geckoIds: string[]): Promise<Record<string, { usd: number; usd24hChange: number }>> {
   if (!geckoIds.length) return {};
 
   try {
@@ -199,7 +195,7 @@ async function fetchCoinPaprikaQuotes(geckoIds: string[], _currencies: string[] 
       `${COINPAPRIKA_BASE_URL}/tickers?ids=${paprikaIds.join(",")}`,
     );
 
-    const result: Record<string, Quote> = {};
+    const result: Record<string, { usd: number; usd24hChange: number }> = {};
 
     for (const ticker of tickers) {
       const geckoId = Object.entries(COINPAPRIKA_IDS).find(
@@ -210,7 +206,6 @@ async function fetchCoinPaprikaQuotes(geckoIds: string[], _currencies: string[] 
         result[geckoId] = {
           usd: ticker.quotes.USD.price,
           usd24hChange: ticker.quotes.USD.percent_change_24h,
-          // Other currencies are converted by fetchQuotes if needed
         };
       }
     }
@@ -223,55 +218,25 @@ async function fetchCoinPaprikaQuotes(geckoIds: string[], _currencies: string[] 
 }
 
 // Main fetch function with fallbacks
-export async function fetchQuotes(ids: string[], currencies: string[] = ["usd"]): Promise<Record<string, Quote>> {
+export async function fetchQuotes(ids: string[], _currencies: string[] = ["usd"]): Promise<Record<string, Quote>> {
   if (!ids.length) return {} as Record<string, Quote>;
 
+  // Try each API until we get a NON-EMPTY result
   const apis = [
-    (ids: string[]) => fetchCoinGeckoQuotes(ids, currencies),
-    fetchBinanceQuotes,
-    fetchCoinPaprikaQuotes,
+    fetchCoinGeckoUsd,
+    fetchBinanceUsd,
+    fetchCoinPaprikaUsd,
   ];
 
+  let baseUsdQuotes: Record<string, { usd: number; usd24hChange: number }> | null = null;
   let lastError: Error | null = null;
 
   for (const fetchFn of apis) {
     try {
       const result = await fetchFn(ids);
       if (Object.keys(result).length > 0) {
-        // If we got data from an API that doesn't provide all requested currencies,
-        // fill missing ones with USD conversion using exchange rates
-        if (currencies.length > 1 && currencies.includes("usd")) {
-          const hasAllCurrencies = Object.values(result).every(quote =>
-            currencies.every(c => quote[c as keyof Quote] !== undefined)
-          );
-
-          if (!hasAllCurrencies && result[ids[0]]?.usd !== undefined) {
-            const targetCurrencies = currencies.filter(c => c !== "usd").map(c => c.toUpperCase() as "INR" | "EUR" | "GBP");
-            const { rates } = await fetchExchangeRates("USD", targetCurrencies);
-            for (const id in result) {
-              const quote = result[id];
-              const baseUsd = quote.usd;
-              const baseChange = quote.usd24hChange;
-
-              if (baseUsd !== undefined) {
-                if (currencies.includes("inr") && quote.inr === undefined) {
-                  quote.inr = baseUsd * (rates.INR ?? 83);
-                  quote.inr24hChange = baseChange;
-                }
-                if (currencies.includes("eur") && quote.eur === undefined) {
-                  quote.eur = baseUsd * (rates.EUR ?? 0.92);
-                  quote.eur24hChange = baseChange;
-                }
-                if (currencies.includes("gbp") && quote.gbp === undefined) {
-                  quote.gbp = baseUsd * (rates.GBP ?? 0.79);
-                  quote.gbp24hChange = baseChange;
-                }
-              }
-            }
-           }
-         }
-
-         return result as Record<string, Quote>;
+        baseUsdQuotes = result;
+        break;
       }
     } catch (error) {
       lastError = error as Error;
@@ -279,7 +244,48 @@ export async function fetchQuotes(ids: string[], currencies: string[] = ["usd"])
     }
   }
 
-  throw lastError || new Error("All APIs failed to fetch quotes");
+  if (!baseUsdQuotes) {
+    throw lastError || new Error("All APIs failed to fetch quotes");
+  }
+
+  // Fetch exchange rates ONCE from Frankfurter
+  let rates: Record<string, number>;
+  try {
+    const exchangeResponse = await fetchExchangeRates("USD", ["INR", "EUR", "GBP"]);
+    rates = exchangeResponse.rates;
+  } catch (rateError) {
+    console.warn("Failed to fetch exchange rates, using fallback:", rateError);
+    rates = { INR: 83, EUR: 0.92, GBP: 0.79 };
+  }
+
+  // Build consistent Quote objects using the SAME USD base + SAME exchange rates
+  const finalQuotes: Record<string, Quote> = {};
+
+  for (const id of ids) {
+    const base = baseUsdQuotes![id];
+    if (!base) continue; // skip if this ID wasn't found
+
+    const usd = base.usd;
+    const usd24hChange = base.usd24hChange;
+
+    // Compute all other currencies using Frankfurter rates (consistent!)
+    const inrRate = rates.INR ?? 83;
+    const eurRate = rates.EUR ?? 0.92;
+    const gbpRate = rates.GBP ?? 0.79;
+
+    finalQuotes[id] = {
+      usd,
+      usd24hChange,
+      inr: usd * inrRate,
+      inr24hChange: usd24hChange,
+      eur: usd * eurRate,
+      eur24hChange: usd24hChange,
+      gbp: usd * gbpRate,
+      gbp24hChange: usd24hChange,
+    };
+  }
+
+  return finalQuotes;
 }
 
 export async function fetchCoinQuote(geckoId: string) {
