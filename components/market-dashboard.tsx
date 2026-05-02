@@ -9,19 +9,17 @@ import { PriceCard } from "@/components/price-card";
 import { Tabs } from "@/components/tabs";
 import { ApiStatus } from "@/components/api-status";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { fetchQuotes } from "@/lib/coingecko";
 import { formatCompactUsd, formatPercent, formatUsd } from "@/lib/format";
 import {
-  allMarkets,
   getMarketsForTab,
-  getUniqueGeckoIds,
   marketTabs,
   type MarketSeed,
   type MarketTabId,
 } from "@/lib/markets";
 
 async function fetchMarketQuotes() {
-  return fetchQuotes(getUniqueGeckoIds(allMarkets), ["usd"]);
+  const res = await fetch("/api/prices");
+  return res.json();
 }
 
 function filterMarkets(markets: MarketSeed[], query: string) {
@@ -104,7 +102,7 @@ export function MarketDashboard() {
               </div>
               <div className="text-right text-sm text-muted">
                 <div>{activeTab === "futures" ? "Futures" : "Spot"}</div>
-                <div>{visibleMarkets.length} markets</div>
+                <div suppressHydrationWarning>{visibleMarkets.length} markets</div>
               </div>
             </div>
 
