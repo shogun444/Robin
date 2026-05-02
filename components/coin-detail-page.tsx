@@ -8,7 +8,6 @@ import { PriceCalculator } from "@/components/price-calculator";
 import { PriceChart } from "@/components/price-chart";
 import { ThemeToggle } from "@/components/theme-toggle";
 import type { MarketSeed } from "@/lib/markets";
-import { fetchCoinQuote, fetchUsdToInrRate } from "@/lib/coingecko";
 import { formatInr, formatPercent, formatUsd } from "@/lib/format";
 
 type CoinDetailPageProps = {
@@ -16,14 +15,11 @@ type CoinDetailPageProps = {
 };
 
 async function fetchCoinDetails(geckoId: string) {
-  const [quote, usdToInrRate] = await Promise.all([
-    fetchCoinQuote(geckoId),
-    fetchUsdToInrRate(),
-  ]);
-
+  const res = await fetch(`/api/coin/${geckoId}`);
+  const { quote, rate } = await res.json();
   return {
     change24h: quote.usd24hChange,
-    inrPrice: quote.inr ?? (quote.usd ?? 0) * usdToInrRate,
+    inrPrice: quote.inr ?? (quote.usd ?? 0) * rate,
     usdPrice: quote.usd ?? 0,
   };
 }
