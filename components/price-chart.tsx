@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { createChart, IChartApi, ISeriesApi, ColorType, LineData, Time } from "lightweight-charts";
+import { createChart, IChartApi, ISeriesApi, LineData, Time, ColorType } from "lightweight-charts";
 import { useChartData, TimeRange } from "@/hooks/use-chart-data";
 import { TimeRangeSelector } from "@/components/time-range-selector";
 import { formatPercent, formatUsd } from "@/lib/format";
@@ -14,16 +14,13 @@ type PriceChartProps = {
 export function PriceChart({ coinId, coinName }: PriceChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const seriesRef = useRef<any>(null);
   const [range, setRange] = useState<TimeRange>("1D");
-  const [chartError, setChartError] = useState<string | null>(null);
-
   const { data, error, isLoading } = useChartData(coinId, range);
+  const [chartError, setChartError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
-
-    setChartError(null);
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
@@ -49,8 +46,7 @@ export function PriceChart({ coinId, coinName }: PriceChartProps) {
     let lineSeries: ISeriesApi<"Line"> | null = null;
 
     try {
-      lineSeries = chart.addSeries("Line");
-      lineSeries.applyOptions({
+      lineSeries = chart.addLineSeries({
         color: "#f97316",
         lineWidth: 2,
       });
@@ -90,16 +86,17 @@ export function PriceChart({ coinId, coinName }: PriceChartProps) {
       value: point.value,
     }));
 
-    const firstPrice = data[0]?.value ?? 0;
-    const lastPrice = data[data.length - 1]?.value ?? 0;
+    const firstPrice = data?.[0]?.value ?? 0;
+    const lastPrice = data?.[data.length - 1]?.value ?? 0;
     const isUp = lastPrice >= firstPrice;
+
     const lineColor = isUp ? "#22c55e" : "#ef4444";
 
-    seriesRef.current.applyOptions({
+    seriesRef.current?.applyOptions({
       color: lineColor,
     });
 
-    seriesRef.current.setData(lineData);
+    seriesRef.current?.setData(lineData);
 
     if (chartRef.current) {
       chartRef.current.timeScale().fitContent();

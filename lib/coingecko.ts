@@ -7,6 +7,10 @@ export type Quote = {
   inr24hChange?: number;
   usd?: number;
   usd24hChange?: number;
+  eur?: number;
+  eur24hChange?: number;
+  gbp?: number;
+  gbp24hChange?: number;
 };
 
 type SimplePriceResponse = Record<string, Record<string, number>>;
@@ -117,7 +121,7 @@ async function fetchCoinGeckoQuotes(ids: string[]): Promise<Record<string, Quote
 
   try {
     const payload = await fetchJson<SimplePriceResponse>(
-      `${COINGECKO_BASE_URL}${buildSimplePriceUrl(ids, ["usd"])}`,
+      `${COINGECKO_BASE_URL}${buildSimplePriceUrl(ids, ["usd", "inr", "eur", "gbp"])}`,
     );
 
     return Object.fromEntries(
@@ -126,6 +130,12 @@ async function fetchCoinGeckoQuotes(ids: string[]): Promise<Record<string, Quote
         {
           usd: entry.usd,
           usd24hChange: entry.usd_24h_change,
+          inr: entry.inr,
+          inr24hChange: entry.inr_24h_change,
+          eur: entry.eur,
+          eur24hChange: entry.eur_24h_change,
+          gbp: entry.gbp,
+          gbp24hChange: entry.gbp_24h_change,
         } satisfies Quote,
       ]),
     ) as Record<string, Quote>;
