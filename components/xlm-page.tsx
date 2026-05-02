@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Layout } from "@/components/layout";
 import { PriceCalculator } from "@/components/price-calculator";
+import { PriceChart } from "@/components/price-chart";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export function XlmPage() {
@@ -25,7 +26,7 @@ export function XlmPage() {
         </div>
       }
     >
-      <div className="mx-auto max-w-3xl space-y-4">
+      <div className="mx-auto max-w-5xl space-y-6">
         <div>
           <p className="text-[0.7rem] uppercase tracking-[0.24em] text-muted">
             Calculator
@@ -37,6 +38,11 @@ export function XlmPage() {
             Enter an amount in USD or INR and get a live XLM estimate using CoinGecko pricing and a live USD-to-INR conversion rate.
           </p>
         </div>
+
+        <PriceChart 
+          coinId="stellar" 
+          coinName="Stellar Lumens"
+        />
 
         <PriceCalculator 
           coinName="Stellar Lumens" 
