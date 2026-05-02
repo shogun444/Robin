@@ -34,16 +34,16 @@ export function PriceChart({ coinId, coinName }: PriceChartProps) {
         horzLines: { color: "rgba(255, 255, 255, 0.05)" },
       },
       crosshair: {
-        mode: 1,
+        mode: 1 as any,
         vertLine: {
           color: "rgba(255, 255, 255, 0.2)",
           width: 1,
-          style: 2,
+          style: 2 as any,
         },
         horzLine: {
           color: "rgba(255, 255, 255, 0.2)",
           width: 1,
-          style: 2,
+          style: 2 as any,
         },
       },
       rightPriceScale: {
@@ -56,7 +56,8 @@ export function PriceChart({ coinId, coinName }: PriceChartProps) {
       },
     });
 
-    const lineSeries = chart.addSeries("Line", {
+    const lineSeries = chart.addSeries("Line");
+    lineSeries.applyOptions({
       color: "#f97316",
       lineWidth: 2,
     });
