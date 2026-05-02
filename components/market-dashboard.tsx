@@ -47,7 +47,10 @@ export function MarketDashboard() {
     data: quotes = {},
     error,
     isLoading,
-  } = useSWR("market-quotes", fetchMarketQuotes);
+  } = useSWR("market-quotes", fetchMarketQuotes, {
+    shouldRetryOnError: false,
+    errorRetryCount: 2,
+  });
 
   const activeMarkets = getMarketsForTab(activeTab);
   const visibleMarkets = filterMarkets(activeMarkets, deferredSearch);
@@ -121,7 +124,7 @@ export function MarketDashboard() {
           </div>
 
           <MarketTable
-            error={error ? "Unable to load market prices from CoinGecko." : null}
+            error={error ? "Unable to load market prices. CoinGecko API may be rate-limited. Please try again later." : null}
             items={visibleMarkets}
             loading={isLoading}
             quotes={quotes}

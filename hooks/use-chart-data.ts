@@ -22,20 +22,33 @@ async function fetchChartData(coinId: string, range: TimeRange): Promise<ChartDa
     "5Y": "max",
   };
 
-  const response = await fetch(
-    `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${rangeMap[range]}`
-  );
+  try {
+    const response = await fetch(
+      `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${rangeMap[range]}`,
+      {
+        headers: {
+          accept: "application/json",
+        },
+        next: {
+          revalidate: 60,
+        },
+      }
+    );
 
-  if (!response.ok) {
-    throw new Error("Failed to fetch chart data");
+    if (!response.ok) {
+      throw new Error(`Failed to fetch chart data: ${response.status}`);
+    }
+
+    const data: ChartDataResponse = await response.json();
+
+    return data.prices.map(([timestamp, price]) => ({
+      time: Math.floor(timestamp / 1000),
+      value: price,
+    }));
+  } catch (error) {
+    console.error("Error fetching chart data:", error);
+    throw error;
   }
-
-  const data: ChartDataResponse = await response.json();
-
-  return data.prices.map(([timestamp, price]) => ({
-    time: Math.floor(timestamp / 1000),
-    value: price,
-  }));
 }
 
 export function useChartData(coinId: string, range: TimeRange) {
@@ -45,6 +58,8 @@ export function useChartData(coinId: string, range: TimeRange) {
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
+      shouldRetryOnError: false,
+      errorRetryCount: 2,
     }
   );
 }

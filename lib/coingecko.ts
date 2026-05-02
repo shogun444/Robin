@@ -27,12 +27,13 @@ async function fetchJson<T>(path: string): Promise<T> {
       accept: "application/json",
     },
     next: {
-      revalidate: 0,
+      revalidate: 60,
     },
   });
 
   if (!response.ok) {
-    throw new Error(`CoinGecko request failed with ${response.status}`);
+    const errorText = await response.text().catch(() => "Unknown error");
+    throw new Error(`CoinGecko request failed: ${response.status} - ${errorText}`);
   }
 
   return (await response.json()) as T;
@@ -80,13 +81,18 @@ export async function fetchCoinQuote(geckoId: string) {
 }
 
 export async function fetchUsdToInrRate() {
-  const payload = await fetchJson<ExchangeRatesResponse>("/exchange_rates");
-  const usdRate = payload.rates.usd?.value ?? 1;
-  const inrRate = payload.rates.inr?.value;
+  try {
+    const payload = await fetchJson<ExchangeRatesResponse>("/exchange_rates");
+    const usdRate = payload.rates.usd?.value ?? 1;
+    const inrRate = payload.rates.inr?.value;
 
-  if (!inrRate || !usdRate) {
+    if (!inrRate || !usdRate) {
+      return 83;
+    }
+
+    return inrRate / usdRate;
+  } catch (error) {
+    console.warn("Failed to fetch exchange rate, using fallback:", error);
     return 83;
   }
-
-  return inrRate / usdRate;
 }
