@@ -16,9 +16,9 @@ type PriceChartProps = {
   coinId: string;
   coinName?: string;
   currency: Currency;
-  data?: ChartDataPoint[];
-  isLoading?: boolean;
-  error?: Error | null;
+  data: ChartDataPoint[];
+  isLoading: boolean;
+  error: Error | null;
   onRangeChange: (range: TimeRange) => void;
 };
 
@@ -28,8 +28,8 @@ export function PriceChart({
   coinId,
   coinName,
   currency,
-  data: externalData,
-  isLoading: externalLoading,
+  data,
+  isLoading,
   error,
   onRangeChange,
 }: PriceChartProps) {
@@ -37,11 +37,6 @@ export function PriceChart({
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<any>(null);
   const [range, setRange] = useState<TimeRange>("1D");
-
-  // Pass through external data/loading state, but allow fallback to internal state if needed
-  const data = externalData;
-  const isLoading = externalLoading;
-  const chartError = error;
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -175,14 +170,11 @@ export function PriceChart({
 
       <div className="rounded-xl border border-border bg-surface-strong p-4 min-h-[400px] relative">
         <div ref={chartContainerRef} className="h-[400px]" />
-        {chartError && (
+        {error && (
           <div className="absolute inset-0 flex items-center justify-center bg-surface-strong/80">
             <ErrorState
-              message={chartError.message || "Failed to load chart data"}
-              onRetry={() => {
-                setChartError(null);
-                window.location.reload();
-              }}
+              message={error.message || "Failed to load chart data"}
+              onRetry={() => window.location.reload()}
             />
           </div>
         )}
@@ -194,4 +186,4 @@ export function PriceChart({
       </div>
     </div>
   );
-};
+}
