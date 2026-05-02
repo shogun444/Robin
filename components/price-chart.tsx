@@ -36,34 +36,39 @@ export function PriceChart({ coinId, coinName }: PriceChartProps) {
       crosshair: {
         mode: 1 as any,
         vertLine: {
-          color: "rgba(255, 255, 255, 0.2)",
+          color: "rgba(255, 255, 255, 0.2)" as any,
           width: 1,
           style: 2 as any,
         },
         horzLine: {
-          color: "rgba(255, 255, 255, 0.2)",
+          color: "rgba(255, 255, 255, 0.2)" as any,
           width: 1,
           style: 2 as any,
         },
       },
       rightPriceScale: {
-        borderColor: "rgba(255, 255, 255, 0.1)",
+        borderColor: "rgba(255, 255, 255, 0.1)" as any,
       },
       timeScale: {
-        borderColor: "rgba(255, 255, 255, 0.1)",
+        borderColor: "rgba(255, 255, 255, 0.1)" as any,
         timeVisible: true,
         secondsVisible: false,
       },
     });
 
-    const lineSeries = chart.addSeries("Line");
-    lineSeries.applyOptions({
-      color: "#f97316",
-      lineWidth: 2,
-    });
+    try {
+      const lineSeries = chart.addSeries("Line");
+      lineSeries.applyOptions({
+        color: "#f97316",
+        lineWidth: 2,
+      });
 
-    chartRef.current = chart;
-    seriesRef.current = lineSeries;
+      chartRef.current = chart;
+      seriesRef.current = lineSeries;
+    } catch (err) {
+      console.error("Failed to create chart series:", err);
+      chart.remove();
+    }
 
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
@@ -77,7 +82,9 @@ export function PriceChart({ coinId, coinName }: PriceChartProps) {
 
     return () => {
       window.removeEventListener("resize", handleResize);
-      chart.remove();
+      if (chartRef.current) {
+        chartRef.current.remove();
+      }
     };
   }, []);
 
@@ -96,7 +103,6 @@ export function PriceChart({ coinId, coinName }: PriceChartProps) {
 
     seriesRef.current.applyOptions({
       color: lineColor,
-      crosshairMarkerBorderColor: lineColor,
     });
 
     seriesRef.current.setData(lineData);
