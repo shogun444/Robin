@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -18,10 +19,8 @@ export function Layout({ children, headerCenter, headerRight }: LayoutProps) {
             className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.24em] text-foreground"
             href="/"
           >
-            <span className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface text-base font-bold text-foreground shadow-(--shadow)">
-              R
-            </span>
-            <span className="hidden text-[0.8rem] sm:inline">Robin</span>
+           <Image className="rounded-full h-10 w-20" src={"/Robin.png"} alt="Robin.png" height={1000} width={1000}></Image>
+            
           </Link>
           <div className="flex min-w-0 flex-1 items-center justify-center">
             {headerCenter}
