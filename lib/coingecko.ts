@@ -232,7 +232,7 @@ export async function fetchQuotes(ids: string[], currencies: string[] = ["usd"])
     fetchCoinPaprikaUsd,
   ];
 
-  let baseUsdQuotes: Record<string, { usd: number; usd24hChange: number }> | null = null;
+  let baseUsdQuotes: Record<string, { usd: number; usd24hChange: number; image?: string }> | null = null;
   let lastError: Error | null = null;
 
   for (const fetchFn of apis) {
