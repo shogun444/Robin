@@ -1,4 +1,5 @@
-﻿import Link from "next/link";
+import Link from "next/link";
+import Image from "next/image";
 import type { Quote } from "@/lib/coingecko";
 import { formatCompactUsd, formatPercent, formatUsd } from "@/lib/format";
 import type { MarketSeed } from "@/lib/markets";
@@ -16,9 +17,21 @@ export function MarketRow({ market, quote }: MarketRowProps) {
     >
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 px-4 py-4 sm:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))] sm:items-center sm:px-5">
         <div className="col-span-2 flex min-w-0 items-center gap-3 sm:col-span-1">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-surface-strong text-sm font-semibold text-foreground">
-            {market.name.charAt(0)}
-          </span>
+          {quote?.image || market.image ? (
+            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-border bg-surface-strong">
+              <Image
+                src={(quote?.image || market.image) as string}
+                alt={market.name}
+                fill
+                sizes="40px"
+                className="object-cover"
+              />
+            </div>
+          ) : (
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-surface-strong text-sm font-semibold text-foreground">
+              {market.name.charAt(0)}
+            </span>
+          )}
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-foreground">
               {market.name}
@@ -73,4 +86,3 @@ function StatCell({
     </div>
   );
 }
-

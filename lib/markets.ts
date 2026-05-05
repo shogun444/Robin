@@ -9,6 +9,8 @@ export type MarketSeed = {
   tab: MarketTabId;
   volume: number;
   change24h: number;
+  image?: string;
+  description?: string;
 };
 
 export const marketTabs: Array<{ id: MarketTabId; label: string }> = [
@@ -26,6 +28,8 @@ export const futuresMarkets: MarketSeed[] = [
     tab: "futures",
     volume: 482_000_000,
     change24h: 2.41,
+    image: "https://coin-images.coingecko.com/coins/images/1/large/bitcoin.png",
+    description: "Bitcoin is a decentralized digital currency, without a central bank or single administrator, that can be sent from user to user on the peer-to-peer bitcoin network without the need for intermediaries.",
   },
   {
     slug: "eth",
@@ -36,6 +40,8 @@ export const futuresMarkets: MarketSeed[] = [
     tab: "futures",
     volume: 251_000_000,
     change24h: -1.18,
+    image: "https://coin-images.coingecko.com/coins/images/279/large/ethereum.png",
+    description: "Ethereum is a decentralized, open-source blockchain with smart contract functionality. Ether is the native cryptocurrency of the platform. Among cryptocurrencies, Ether is second only to Bitcoin in market capitalization.",
   },
   {
     slug: "sol",
@@ -46,6 +52,8 @@ export const futuresMarkets: MarketSeed[] = [
     tab: "futures",
     volume: 138_500_000,
     change24h: 4.92,
+    image: "https://coin-images.coingecko.com/coins/images/4128/large/solana.png",
+    description: "Solana is a high-performance blockchain supporting builders around the world creating crypto apps that scale today. It uses a unique proof-of-history consensus mechanism to achieve high throughput.",
   },
   {
     slug: "xrp",
@@ -56,6 +64,8 @@ export const futuresMarkets: MarketSeed[] = [
     tab: "futures",
     volume: 114_200_000,
     change24h: -0.66,
+    image: "https://coin-images.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png",
+    description: "XRP is a digital asset built for payments. It is the native digital asset on the XRP Ledger—an open-source, permissionless and decentralized blockchain technology.",
   },
   {
     slug: "doge",
@@ -86,6 +96,8 @@ export const futuresMarkets: MarketSeed[] = [
     tab: "futures",
     volume: 72_400_000,
     change24h: -2.14,
+    image: "https://coin-images.coingecko.com/coins/images/12559/large/Avalanche_Circle_RedWhite_Trans.png",
+    description: "Avalanche is an open-source platform for launching decentralized applications and enterprise blockchain deployments in one interoperable, highly scalable ecosystem.",
   },
   {
     slug: "ton",
@@ -96,6 +108,8 @@ export const futuresMarkets: MarketSeed[] = [
     tab: "futures",
     volume: 65_100_000,
     change24h: 3.08,
+    image: "https://coin-images.coingecko.com/coins/images/17980/large/ton_symbol.png",
+    description: "The Open Network (TON) is a fully decentralized layer-1 blockchain designed by Telegram to onboard billions of users. It boasts ultra-fast transactions and low fees.",
   },
   {
     slug: "bnb",

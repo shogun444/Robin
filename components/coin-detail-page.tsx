@@ -1,7 +1,8 @@
-﻿"use client";
+"use client";
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Layout } from "@/components/layout";
 import { PriceCard } from "@/components/price-card";
 import { PriceCalculator } from "@/components/price-calculator";
@@ -9,7 +10,7 @@ import { PriceChart } from "@/components/price-chart";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CurrencySelector, type Currency } from "@/components/currency-selector";
 import type { MarketSeed } from "@/lib/markets";
-import { fetchChartData, fetchCoinQuote } from "@/lib/coingecko";
+import { fetchChartData, fetchCoinQuote, fetchCoinInfo, type CoinInfo } from "@/lib/coingecko";
 import { formatPercent, formatCurrency } from "@/lib/format";
 import { LoadingState, ErrorState } from "@/components/states";
 
@@ -27,6 +28,12 @@ type QuoteData = {
   eur24hChange: number;
   gbp: number;
   gbp24hChange: number;
+  image?: string;
+  binanceData?: {
+    high: string;
+    low: string;
+    volume: string;
+  };
 };
 
 type TimeRange = "1D" | "1W" | "1M" | "1Y" | "5Y";
@@ -44,17 +51,24 @@ export function CoinDetailPage({ market }: CoinDetailPageProps) {
   const [quoteLoading, setQuoteLoading] = useState(true);
   const [quoteError, setQuoteError] = useState<Error | null>(null);
 
+  // Binance state
+  const [binanceInfo, setBinanceInfo] = useState<{ high: string; low: string; volume: string } | null>(null);
+
   // Chart state - refetched when currency or range changes
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [chartLoading, setChartLoading] = useState(true);
   const [chartError, setChartError] = useState<Error | null>(null);
 
+  // Info state
+  const [coinInfo, setCoinInfo] = useState<CoinInfo | null>(null);
+
   // Fetch quote data (all currencies) - runs once on mount
   useEffect(() => {
-    async function fetchQuote() {
+    async function fetchData() {
       setQuoteLoading(true);
       setQuoteError(null);
 
+      // Fetch quote first (higher priority, has images)
       try {
         const quote = await fetchCoinQuote(market.geckoId);
         setQuoteData(quote);
@@ -64,9 +78,33 @@ export function CoinDetailPage({ market }: CoinDetailPageProps) {
       } finally {
         setQuoteLoading(false);
       }
+
+      // Fetch extra info separately (lower priority, easily rate limited)
+      try {
+        const info = await fetchCoinInfo(market.geckoId);
+        if (info) setCoinInfo(info);
+      } catch (err) {
+        console.warn("Failed to fetch extra coin info:", err);
+      }
+
+      // Fetch Binance data
+      try {
+        const binanceSymbol = market.symbol.replace("-PERP", "USDT").replace("/", "");
+        const response = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${binanceSymbol}`);
+        if (response.ok) {
+          const data = await response.json();
+          setBinanceInfo({
+            high: data.highPrice,
+            low: data.lowPrice,
+            volume: data.volume,
+          });
+        }
+      } catch (err) {
+        console.warn("Failed to fetch Binance ticker:", err);
+      }
     }
 
-    fetchQuote();
+    fetchData();
   }, [market.geckoId]);
 
   // Fetch chart data - runs when currency or range changes
@@ -150,6 +188,7 @@ export function CoinDetailPage({ market }: CoinDetailPageProps) {
     eur: quoteData.eur,
     gbp: quoteData.gbp,
     usd24hChange: quoteData.usd24hChange,
+    image: quoteData.image,
   } : null;
 
   // Combine loading/error states for overall UI (if needed)
@@ -177,13 +216,27 @@ export function CoinDetailPage({ market }: CoinDetailPageProps) {
     >
       <div className="mx-auto max-w-5xl space-y-6">
         <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-[0.7rem] uppercase tracking-[0.24em] text-muted">
-              Coin detail
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold text-foreground sm:text-4xl">
-              {market.name}
-            </h1>
+          <div className="flex items-center gap-4">
+            {(coinInfo?.image?.large || quoteData?.image || market.image) ? (
+              <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-border bg-surface-strong shadow-lg">
+                <Image
+                  src={(coinInfo?.image?.large || quoteData?.image || market.image) as string}
+                  alt={market.name}
+                  fill
+                  sizes="64px"
+                  className="object-cover"
+                />
+              </div>
+            ) : (
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-border bg-surface-strong text-2xl font-bold text-foreground">
+                {market.name.charAt(0)}
+              </span>
+            )}
+            <div>
+              <h1 className="text-4xl font-semibold text-foreground sm:text-5xl">
+                {market.name}
+              </h1>
+            </div>
           </div>
           <CurrencySelector activeCurrency={currency} onCurrencyChange={setCurrency} />
         </div>
@@ -198,17 +251,22 @@ export function CoinDetailPage({ market }: CoinDetailPageProps) {
           onRangeChange={handleRangeChange}
         />
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6">
           <PriceCard
-            description={`Live CoinGecko quote for ${market.name}. All prices are from a single API response.`}
+            description={`Live market data and information for ${market.name}.`}
             details={quoteData ? [
-              { label: `${currency} price`, value: formatCurrency(currentPrice, currency) },
               { label: "Symbol", value: market.symbol },
               {
                 label: "24h change",
                 tone: (change24h ?? 0) >= 0 ? "positive" : "negative",
                 value: formatPercent(change24h),
               },
+              ...(coinInfo?.genesisDate ? [{ label: "Founded", value: coinInfo.genesisDate }] : []),
+              ...(binanceInfo ? [
+                { label: "Binance 24h High", value: formatCurrency(Number(binanceInfo.high), "USD") },
+                { label: "Binance 24h Low", value: formatCurrency(Number(binanceInfo.low), "USD") },
+              ] : []),
+              ...(coinInfo?.links?.homepage?.[0] && coinInfo.links.homepage[0].startsWith('http') ? [{ label: "Website", value: new URL(coinInfo.links.homepage[0]).hostname }] : []),
             ] : []}
             price={
               quoteLoading
@@ -217,23 +275,59 @@ export function CoinDetailPage({ market }: CoinDetailPageProps) {
                 ? <ErrorState message="Unable to load price" onRetry={() => window.location.reload()} />
                 : formatCurrency(currentPrice, currency)
             }
-            priceLabel={market.geckoId}
+            priceLabel="Coin Detail"
             title={market.name}
+            icon={
+              (coinInfo?.image?.large || quoteData?.image || market.image) ? (
+                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-border bg-background">
+                  <Image
+                    src={(coinInfo?.image?.large || quoteData?.image || market.image) as string}
+                    alt={market.name}
+                    fill
+                    sizes="64px"
+                    className="object-cover"
+                  />
+                </div>
+              ) : (
+                <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-border bg-background text-2xl font-semibold text-foreground">
+                  {market.name.charAt(0)}
+                </span>
+              )
+            }
           >
-            <div className="rounded-2xl border border-border bg-background px-4 py-4 text-sm text-muted">
-              All prices fetched directly from CoinGecko API — one request, consistent data.
+            <div className="space-y-8">
+              {/* Information Section */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground/70">
+                  Information
+                </h3>
+                {coinInfo?.description || market.description ? (
+                  <div 
+                    className="max-h-[400px] overflow-y-auto pr-2 text-sm leading-relaxed text-muted scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
+                    dangerouslySetInnerHTML={{ __html: coinInfo?.description || (market.description as string) }}
+                  />
+                ) : (
+                  <div className="text-sm text-muted italic">
+                    {quoteLoading ? "Fetching coin details..." : "Detailed information currently unavailable for this coin."}
+                  </div>
+                )}
+              </div>
+
+              {/* Merged Calculator */}
+              <div className="border-t border-border pt-8">
+                <PriceCalculator
+                  coinName={market.name}
+                  geckoId={market.geckoId}
+                  title={`${market.name} Calculator`}
+                  prices={pricesForCalculator}
+                  isLoading={quoteLoading}
+                  error={quoteError}
+                  onRetry={() => window.location.reload()}
+                  minimal
+                />
+              </div>
             </div>
           </PriceCard>
-
-          <PriceCalculator
-            coinName={market.name}
-            geckoId={market.geckoId}
-            title={`${market.name} Calculator`}
-            prices={pricesForCalculator}
-            isLoading={quoteLoading}
-            error={quoteError}
-            onRetry={() => window.location.reload()}
-          />
         </div>
       </div>
     </Layout>

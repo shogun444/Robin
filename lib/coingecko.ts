@@ -12,21 +12,10 @@ export type Quote = {
   eur24hChange: number;
   gbp: number;
   gbp24hChange: number;
+  image?: string;
 };
 
 type SimplePriceResponse = Record<string, Record<string, number>>;
-
-type ExchangeRatesResponse = {
-  rates: Record<
-    string,
-    {
-      name: string;
-      type: string;
-      unit: string;
-      value: number;
-    }
-  >;
-};
 
 type BinanceTicker = {
   symbol: string;
@@ -85,7 +74,9 @@ async function fetchJson<T>(url: string, timeout = 10000): Promise<T> {
     const response = await fetch(url, {
       headers: {
         accept: "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       },
+      cache: "no-store",
       signal: controller.signal,
     });
 
@@ -116,22 +107,35 @@ function buildSimplePriceUrl(
   return `/simple/price?${params.toString()}`;
 }
 
-// CoinGecko API (USD only)
-async function fetchCoinGeckoUsd(ids: string[]): Promise<Record<string, { usd: number; usd24hChange: number }>> {
+// Cache for USD price (Frankfurter exchange rates) - expires after 2 hours
+let usdRatesCache: { rates: Record<string, number>; ts: number } | null = null;
+const USD_RATES_TTL = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+
+// CoinGecko API (USD only, including images)
+async function fetchCoinGeckoUsd(ids: string[]): Promise<Record<string, { usd: number; usd24hChange: number; image?: string }>> {
   if (!ids.length) return {};
 
   try {
-    const payload = await fetchJson<SimplePriceResponse>(
-      `${COINGECKO_BASE_URL}${buildSimplePriceUrl(ids, ["usd"])}`,
+    const params = new URLSearchParams({
+      vs_currency: "usd",
+      ids: ids.join(","),
+      order: "market_cap_desc",
+      sparkline: "false",
+      locale: "en",
+    });
+
+    const payload = await fetchJson<any>(
+      `${COINGECKO_BASE_URL}/coins/markets?${params.toString()}`,
     );
 
-    const result: Record<string, { usd: number; usd24hChange: number }> = {};
+    const result: Record<string, { usd: number; usd24hChange: number; image?: string }> = {};
 
-    for (const [id, entry] of Object.entries(payload)) {
-      if (entry.usd !== undefined) {
-        result[id] = {
-          usd: entry.usd,
-          usd24hChange: entry.usd_24h_change ?? 0,
+    if (Array.isArray(payload)) {
+      for (const entry of payload) {
+        result[entry.id] = {
+          usd: entry.current_price,
+          usd24hChange: entry.price_change_percentage_24h ?? 0,
+          image: entry.image,
         };
       }
     }
@@ -162,7 +166,7 @@ async function fetchBinanceUsd(geckoIds: string[]): Promise<Record<string, { usd
 
     for (const ticker of tickers) {
       const geckoId = Object.entries(BINANCE_SYMBOLS).find(
-        ([_, symbol]) => symbol === ticker.symbol,
+        ([, binanceSymbol]) => binanceSymbol === ticker.symbol,
       )?.[0];
 
       if (geckoId) {
@@ -199,7 +203,7 @@ async function fetchCoinPaprikaUsd(geckoIds: string[]): Promise<Record<string, {
 
     for (const ticker of tickers) {
       const geckoId = Object.entries(COINPAPRIKA_IDS).find(
-        ([_, paprikaId]) => paprikaId === ticker.id,
+        ([, paprikaId]) => paprikaId === ticker.id,
       )?.[0];
 
       if (geckoId) {
@@ -218,7 +222,7 @@ async function fetchCoinPaprikaUsd(geckoIds: string[]): Promise<Record<string, {
 }
 
 // Main fetch function with fallbacks
-export async function fetchQuotes(ids: string[], _currencies: string[] = ["usd"]): Promise<Record<string, Quote>> {
+export async function fetchQuotes(ids: string[], currencies: string[] = ["usd"]): Promise<Record<string, Quote>> {
   if (!ids.length) return {} as Record<string, Quote>;
 
   // Try each API until we get a NON-EMPTY result
@@ -282,6 +286,7 @@ export async function fetchQuotes(ids: string[], _currencies: string[] = ["usd"]
       eur24hChange: usd24hChange,
       gbp: usd * gbpRate,
       gbp24hChange: usd24hChange,
+      image: base.image,
     };
   }
 
@@ -305,32 +310,28 @@ export async function fetchCoinQuote(geckoId: string) {
   }
 }
 
-export async function fetchUsdToInrRate() {
-  try {
-    const payload = await fetchJson<ExchangeRatesResponse>(
-      `${COINGECKO_BASE_URL}/exchange_rates`,
-    );
-    const usdRate = payload.rates.usd?.value ?? 1;
-    const inrRate = payload.rates.inr?.value;
-
-    if (!inrRate || !usdRate) {
-      return 83;
-    }
-
-    return inrRate / usdRate;
-  } catch (error) {
-    console.warn("Failed to fetch exchange rate, using fallback:", error);
-    return 83;
-  }
-}
-
 export async function fetchExchangeRates(base: string = "USD", symbols: string[] = ["INR", "EUR", "GBP"]) {
+  // Return cached rates if still valid
+  if (usdRatesCache && Date.now() - usdRatesCache.ts < USD_RATES_TTL && base === "USD") {
+    return { rates: usdRatesCache.rates };
+  }
+
   try {
     const response = await fetch(`${FRANKFURTER_BASE_URL}/latest?base=${base}&symbols=${symbols.join(",")}`);
     if (!response.ok) {
       throw new Error(`Frankfurter API error: ${response.statusText}`);
     }
-    return await response.json() as { rates: Record<string, number> };
+    const data = await response.json();
+    
+    // Cache the rates for USD base
+    if (base === "USD") {
+      usdRatesCache = {
+        rates: data.rates,
+        ts: Date.now(),
+      };
+    }
+    
+    return data;
   } catch (error) {
     console.warn("Failed to fetch exchange rates from Frankfurter:", error);
     const fallbackRates: Record<string, number> = {
@@ -352,6 +353,40 @@ export async function fetchHistoricalExchangeRate(base: string, target: string, 
     return data.rates[target];
   } catch (error) {
     console.warn("Failed to fetch historical exchange rate:", error);
+    return null;
+  }
+}
+
+export type CoinImage = {
+  thumb: string;
+  small: string;
+  large: string;
+};
+
+export type CoinInfo = {
+  image: CoinImage;
+  description: string;
+  genesisDate?: string;
+  links?: {
+    homepage: string[];
+  };
+};
+
+export async function fetchCoinInfo(geckoId: string): Promise<CoinInfo | null> {
+  try {
+    const response = await fetch(`${COINGECKO_BASE_URL}/coins/${geckoId}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false&sparkline=false`);
+    if (!response.ok) {
+      throw new Error(`CoinGecko API error: ${response.statusText}`);
+    }
+    const data = await response.json() as any;
+    return {
+      image: data.image,
+      description: data.description?.en || "",
+      genesisDate: data.genesis_date,
+      links: data.links,
+    };
+  } catch (error) {
+    console.warn(`Failed to fetch coin info for ${geckoId}:`, error);
     return null;
   }
 }

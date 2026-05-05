@@ -13,7 +13,7 @@ export async function GET() {
   }
 
   const ids = getUniqueGeckoIds(allMarkets);
-  const quotes = await fetchQuotes(ids, ["usd"]);
+  const quotes = await fetchQuotes(ids, ["usd", "inr", "eur", "gbp"]);
 
   cache.set("prices", { data: quotes, ts: Date.now() });
 

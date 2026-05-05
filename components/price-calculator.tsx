@@ -1,10 +1,12 @@
-﻿"use client";
+"use client";
 
+import Image from "next/image";
 import { useState, useMemo } from "react";
 import { PriceCard } from "@/components/price-card";
 import { formatInr, formatUsd, formatEur, formatGbp, formatPercent, formatCurrency } from "@/lib/format";
 import { LoadingState, ErrorState } from "@/components/states";
 import type { Currency } from "@/components/currency-selector";
+import type { ReactNode } from "react";
 
 type CalculatorCurrency = "USD" | "INR" | "EUR" | "GBP";
 
@@ -18,10 +20,13 @@ type PriceCalculatorProps = {
     eur: number;
     gbp: number;
     usd24hChange: number;
+    image?: string;
   } | null;
+  icon?: ReactNode;
   isLoading?: boolean;
   error?: Error | null;
   onRetry?: () => void;
+  minimal?: boolean;
 };
 
 export function PriceCalculator({
@@ -29,9 +34,11 @@ export function PriceCalculator({
   geckoId,
   title,
   prices,
+  icon,
   isLoading,
   error,
   onRetry,
+  minimal,
 }: PriceCalculatorProps) {
   const [currency, setCurrency] = useState<CalculatorCurrency>("USD");
   const [amount, setAmount] = useState("100");
@@ -64,34 +71,8 @@ export function PriceCalculator({
 
   const currencyOptions: CalculatorCurrency[] = ["USD", "INR", "EUR", "GBP"];
 
-  return (
-    <PriceCard
-      description={`Convert ${currencyOptions.join(", ")} into ${coinName} using live prices.`}
-      details={
-        prices
-          ? [
-              { label: "USD price", value: formatUsd(prices.usd) },
-              { label: "INR price", value: formatInr(prices.inr) },
-              { label: "EUR price", value: formatEur(prices.eur) },
-              { label: "GBP price", value: formatGbp(prices.gbp) },
-              {
-                label: "24h change",
-                tone: (prices.usd24hChange ?? 0) >= 0 ? "positive" : "negative",
-                value: formatPercent(prices.usd24hChange),
-              },
-            ]
-          : []
-      }
-      price={
-        isLoading
-          ? <LoadingState message="" />
-          : error
-          ? <ErrorState message="Unable to load data" onRetry={onRetry} />
-          : currentPriceDisplay
-      }
-      priceLabel={`${coinName} calculator`}
-      title={title || coinName}
-    >
+  const content = (
+    <>
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
         <label className="block">
           <span className="text-[0.7rem] uppercase tracking-[0.22em] text-muted">
@@ -139,6 +120,59 @@ export function PriceCalculator({
           {currency} {safeAmount.toFixed(2)} buys approximately {coinValue > 0 ? coinValue.toFixed(4) : "0.0000"} {coinName.toUpperCase()} at {currentPriceDisplay}.
         </div>
       </div>
+    </>
+  );
+
+  if (minimal) {
+    return content;
+  }
+
+  return (
+    <PriceCard
+      description={`Convert ${currencyOptions.join(", ")} into ${coinName} using live prices.`}
+      details={
+        prices
+          ? [
+              { label: "USD price", value: formatUsd(prices.usd) },
+              { label: "INR price", value: formatInr(prices.inr) },
+              { label: "EUR price", value: formatEur(prices.eur) },
+              { label: "GBP price", value: formatGbp(prices.gbp) },
+              {
+                label: "24h change",
+                tone: (prices.usd24hChange ?? 0) >= 0 ? "positive" : "negative",
+                value: formatPercent(prices.usd24hChange),
+              },
+            ]
+          : []
+      }
+      price={
+        isLoading
+          ? <LoadingState message="" />
+          : error
+          ? <ErrorState message="Unable to load data" onRetry={onRetry} />
+          : currentPriceDisplay
+      }
+      priceLabel={`${coinName} calculator`}
+      title={title || coinName}
+      icon={
+        icon || (prices?.image ? (
+          <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border border-border bg-background">
+            <Image
+              src={prices.image}
+              alt={coinName}
+              fill
+              sizes="48px"
+              className="object-cover"
+            />
+          </div>
+        ) : (
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border bg-background text-lg font-semibold text-foreground">
+            {coinName.charAt(0)}
+          </span>
+        ))
+      }
+    >
+      {content}
     </PriceCard>
   );
 }

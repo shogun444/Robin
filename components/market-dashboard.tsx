@@ -1,5 +1,6 @@
-﻿"use client";
+"use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useDeferredValue, useState } from "react";
 import useSWR from "swr";
@@ -159,6 +160,23 @@ export function MarketDashboard() {
               price={selectedQuote ? formatUsd(selectedQuote.usd) : "Loading..."}
               priceLabel="Selected market"
               title={selectedMarket.name}
+              icon={
+                selectedQuote?.image ? (
+                  <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border border-border bg-background">
+                    <Image
+                      src={selectedQuote.image}
+                      alt={selectedMarket.name}
+                      fill
+                      sizes="48px"
+                      className="object-cover"
+                    />
+                  </div>
+                ) : (
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border bg-background text-lg font-semibold text-foreground">
+                    {selectedMarket.name.charAt(0)}
+                  </span>
+                )
+              }
             >
               <div className="rounded-2xl border border-border bg-background px-4 py-4 text-sm text-muted">
                 Search and tab state stay local to the client. The first visible market in the active list is shown here as a compact live preview.

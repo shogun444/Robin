@@ -1,4 +1,4 @@
-﻿import type { ReactNode } from "react";
+import type { ReactNode } from "react";
 
 type PriceCardProps = {
   action?: ReactNode;
@@ -9,6 +9,7 @@ type PriceCardProps = {
     tone?: "neutral" | "positive" | "negative";
     value: string;
   }>;
+  icon?: ReactNode;
   price: ReactNode;
   priceLabel: string;
   title: string;
@@ -19,25 +20,24 @@ export function PriceCard({
   children,
   description,
   details = [],
+  icon,
   price,
   priceLabel,
   title,
 }: PriceCardProps) {
   return (
     <section className="rounded-3xl border border-border bg-surface p-5 shadow-(--shadow)">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-[0.7rem] uppercase tracking-[0.24em] text-muted">
             {priceLabel}
           </p>
-          <h2 className="mt-2 text-2xl font-semibold text-foreground">{title}</h2>
-          {description ? (
-            <p className="mt-2 max-w-md text-sm leading-6 text-muted">
-              {description}
-            </p>
-          ) : null}
+          <h2 className="mt-1 text-2xl font-semibold text-foreground">{title}</h2>
         </div>
-        {action ? <div className="shrink-0">{action}</div> : null}
+        <div className="flex items-center gap-4">
+          {icon ? <div className="shrink-0">{icon}</div> : null}
+          {action ? <div className="shrink-0">{action}</div> : null}
+        </div>
       </div>
 
       <div className="mt-6 border-t border-border/70 pt-5">
